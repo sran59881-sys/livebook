@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>活页课本</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M3 7q6-2 13 2v18q-7-4-13-2z%22 fill=%22%23f4ead8%22/%3E%3Cpath d=%22M29 7q-6-2-13 2v18q7-4 13-2z%22 fill=%22%23ff6a3d%22/%3E%3C/svg%3E" />
+  <script>
+    // 从书里回到书架：书里最后一帧（合上的书）先盖在页面最上面，书架那边画好同一个画面再揭开（window.__dropSnap），换页面时不会白一下
+    (function () {
+      var d = document.documentElement;
+      window.__dropSnap = function () {};
+      try {
+        var S = sessionStorage, snap = S.getItem('livebook.snap');
+        if (S.getItem('livebook.homeFrom') && location.search.indexOf('book=') < 0) d.classList.add('to-home');
+        if (!snap) return;
+        S.removeItem('livebook.snap');
+        d.classList.add('snap');
+        var st = document.createElement('style'), block = location.hash.indexOf('via=block') >= 0;          // 从地理世界切出一块地形进来：等书里准备好的这一会儿，画面接着慢慢推近（不停在一张静止的图上），书里按推近了多少摆镜头（window.__snapScale）
+        st.textContent = 'html.snap::after{content:"";position:fixed;inset:0;z-index:1000;pointer-events:none;background:#e9e1d3 url("' + snap + '") center/100% 100% no-repeat;transition:opacity ' + (block ? '.34s' : '.28s') + ' ease' + (block ? ';animation:snap-push 2.6s cubic-bezier(.45,0,.55,1) forwards}@keyframes snap-push{to{transform:scale(1.05)}' : '') + '}html.snap.snap-out::after{opacity:0}';
+        document.head.appendChild(st);
+        window.__snapScale = function () { var m = getComputedStyle(d, '::after').transform, k = m && m.indexOf('matrix(') === 0 ? parseFloat(m.slice(7)) || 1 : 1; st.textContent += 'html.snap::after{animation:none;transform:scale(' + k + ')}'; return k; };          // 停在现在推近的地方，返回推近了多少倍
+        window.__dropSnap = function () { d.classList.add('snap-out'); setTimeout(function () { d.classList.remove('snap', 'snap-out'); st.remove(); }, block ? 380 : 320); };
+        setTimeout(window.__dropSnap, 4000);          // 万一那边出了错，不能一直盖着
+      } catch (e) {}
+    })();
+  </script>
+  <script type="module" crossorigin src="/livebook/assets/index-D7FYz2W9.js"></script>
+  <link rel="modulepreload" crossorigin href="/livebook/assets/LineSegments2-DjQ-d_qG.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/content-8hLY_2WT.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/props-BUuvirEt.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/Panel-CxxzzVhY.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/prefs-BA5DLhPT.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/earth_relief-BOvueovL.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/plates-e6ITpcy7.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/labels-DZKolWJt.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/fx-JGM8m-sN.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/chemfx-BdGCT05X.js">
+  <link rel="modulepreload" crossorigin href="/livebook/assets/Line2-CrzaZhuE.js">
+  <link rel="stylesheet" crossorigin href="/livebook/assets/index-CWYo9uih.css">
+</head>
+<body>
+  <canvas id="c" tabindex="0" aria-label="3D 课本"></canvas>
+
+  <div id="loader">
+    <div class="loader-book"><i></i><i></i><i></i></div>
+    <p class="loader-title">活页课本</p>
+    <p class="loader-msg">正在翻开书本…</p>
+    <div class="loader-bar"><i></i></div>
+  </div>
+
+  <header id="hud-top">
+    <div class="brand"><b>活页课本</b><span id="book-title"></span></div>
+    <div class="hud-actions">
+      <button id="btn-shelf" class="chip" title="回到书桌，换一本书">‹ 书桌</button>
+      <button id="btn-globe" class="chip" title="地球目录：这本书的活页都在地球上" hidden>地球</button>
+      <button id="btn-toc" class="chip" title="目录 (T)">目录</button>
+      <button id="btn-lib" class="chip" title="书库：全部课本和活页，可搜索 (L)">书库</button>
+      <button id="btn-live" class="chip chip-live" title="这本书的活页">✦ 活页 <em id="stamp-count">0/0</em></button>
+      <button id="btn-focus" class="chip chip-focus" title="专注模式：只留实验和面板 (F)">⤢ 专注</button>
+    </div>
+  </header>
+
+  <nav id="hud-pager">
+    <button id="page-live" class="chip chip-live" hidden title="打开这一页上的活页">✦ 这一页有活页</button>
+    <button id="btn-prev" class="round" title="上一页 (←)" aria-label="上一页">‹</button>
+    <span id="page-label">封面</span>
+    <button id="btn-next" class="round" title="下一页 (→)" aria-label="下一页">›</button>
+    <div id="viewseg" title="阅读视图">
+      <button data-view="single" title="单页：一页一页看 (V)">单页</button>
+      <button data-view="spread" class="on" title="平铺：一次看两页">平铺</button>
+      <button data-view="focus" title="全屏：专注模式 (F)">全屏</button>
+    </div>
+  </nav>
+
+  <p id="hint">点击或拖动书页翻页 · 发光的图是一张活页，点一下翻开</p>
+
+  <aside id="drawer" hidden>
+    <div class="drawer-head"><h2 id="drawer-title">目录</h2><button class="x" data-close>×</button></div>
+    <div id="drawer-body"></div>
+  </aside>
+
+  <section id="panel" hidden></section>
+
+  <div id="focus-bar" hidden>
+    <span class="fb-dot"></span><span class="fb-label">专注模式</span>
+    <button id="btn-focus-home" class="fb-btn" title="把实验重新摆到画面中间">复位视角</button>
+    <button id="btn-focus-exit" class="fb-btn fb-exit" title="退出专注模式 (Esc)">退出 Esc</button>
+  </div>
+
+  <footer id="copy">课本页面来自本地教材文件，仅供个人学习使用</footer>
+  <noscript><p style="position:fixed;inset:25%;z-index:9999;background:#fffdf8;padding:24px;color:#23293a">请将文件下载到电脑，用新版 Chrome 或 Edge 打开。聊天软件的文件预览无法运行实验。</p></noscript>
+  <script>
+    // 打不开时的说明卡（作者 2026-11-10：手机、电脑打不开或用不了时，要告诉人换什么浏览器；电脑上使用更佳）。
+    // 这一段故意用最老的写法（var、function）：连新语法都不认的老浏览器，也要能把卡片显示出来。
+    //   window.__lbFail(原因, 详情)：原因 gl（3D 打不开）| old（浏览器太旧）| load（文件没下载下来）| slow（加载太久）| 不给就按报错猜
+    //   加载页还在：卡片放在加载页里（后来要是加载完了，跟着加载页一起淡掉）；已经打开了：浮在页面底下，可以关掉
+    (function () {
+      var FORM = 'https://derekfuture.feishu.cn/share/base/form/shrcnJhWu84wwE0XabiAMZUMBXc', shown = null;
+      var css = '.fail-card{box-sizing:border-box;width:min(440px,calc(100vw - 32px));margin-top:14px;padding:18px 20px 14px;background:#fdfaf1;color:#2c3245;border-radius:3px;box-shadow:0 12px 34px rgba(0,0,0,.35);text-align:left;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}'
+        + '.fail-card h2{margin:0 0 4px;font:700 18px/1.4 "Songti SC","STSong",serif;letter-spacing:.06em}.fail-card .why{margin:0 0 10px;color:#5a5244}'
+        + '.fail-card ul{margin:0 0 12px;padding-left:18px}.fail-card li{margin:3px 0}.fail-card li b{color:#1f4f8f}'
+        + '.fail-card .acts{display:flex;gap:10px;flex-wrap:wrap}.fail-card .acts a,.fail-card .acts button{border:0;padding:8px 16px;border-radius:2px;font-family:inherit;font-size:14px;font-weight:600;line-height:1;cursor:pointer;text-decoration:none}'
+        + '.fail-card .re{background:#1f4f8f;color:#fff}.fail-card .tell{background:transparent;color:#1f4f8f;box-shadow:inset 0 0 0 1.5px rgba(31,79,143,.5)}'
+        + '.fail-card small{display:block;margin-top:10px;color:#9a8f7c;font-size:11px;word-break:break-all}'
+        + '.fail-card.float{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9000;margin:0}.fail-card .x{position:absolute;right:8px;top:4px;border:0;background:none;font:22px/1 sans-serif;color:#8a7d64;cursor:pointer}';
+      function guess(d) { d = String(d || ''); return /WebGL|webgl|context/.test(d) ? 'gl' : /SyntaxError|Unexpected|is not a function|is not defined|not supported/.test(d) ? 'old' : /fetch|import|module|Load|load|network|Network/.test(d) ? 'load' : 'gl'; }
+      window.__lbFail = function (kind, detail) {
+        kind = kind || guess(detail);
+        var loader = document.getElementById('loader'), inLoader = loader && !/\bdone\b/.test(loader.className);
+        if (shown && (shown.inLoader || !inLoader)) return; if (shown) shown.el.parentNode && shown.el.parentNode.removeChild(shown.el);
+        var ua = navigator.userAgent, file = location.protocol === 'file:', wx = /MicroMessenger/i.test(ua);
+        var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), android = /Android/i.test(ua), phone = ios || android;
+        var why = { gl: '这个浏览器打不开活页课本的 3D 画面。', old: '这个浏览器版本太旧，打不开活页课本。', load: '有些文件没下载下来，可能是网络不太好。', slow: '加载得有点久，可能是网络不太好，还在继续。' }[kind] || '活页课本没能打开。';
+        var tips = [];
+        if (file) tips.push('把压缩包<b>解压到电脑上</b>，用新版的 Chrome 或 Edge 打开里面的“活页课本.html”，不要在聊天软件里直接预览。');
+        else {
+          if (kind === 'load' || kind === 'slow') tips.push('看看网络通不通，再点<b>“刷新再试”</b>。还是不行的话：');
+          if (wx) tips.push('在微信里：点右上角“···”，选<b>“在浏览器打开”</b>。');
+          tips.push('<b>电脑上使用更佳</b>：用新版的 Chrome 或 Edge 打开 livebook.derekfuture.club。');
+          if (ios || !phone) tips.push('iPhone、iPad：系统升级到 iOS 15 以上，用 Safari 或 Chrome。');
+          if (android || !phone) tips.push('安卓手机：用 Chrome 或手机自带的浏览器。');
+        }
+        var diag = '{"page":"' + location.href.slice(0, 200) + '","why":"' + kind + '","browser":"' + ua.replace(/"/g, "'") + '","viewport":"' + innerWidth + 'x' + innerHeight + '@' + (window.devicePixelRatio || 1) + '","error":"' + String(detail || '').replace(/"/g, "'").slice(0, 300) + '"}';
+        var tell = FORM + '?prefill_' + encodeURIComponent('反馈来源') + '=' + encodeURIComponent('打不开：' + why) + '&hide_' + encodeURIComponent('反馈来源') + '=1&prefill_' + encodeURIComponent('诊断信息') + '=' + encodeURIComponent(diag) + '&hide_' + encodeURIComponent('诊断信息') + '=1';
+        if (!document.getElementById('fail-css')) { var st = document.createElement('style'); st.id = 'fail-css'; st.textContent = css; document.head.appendChild(st); }
+        var el = document.createElement('div'); el.className = 'fail-card' + (inLoader ? '' : ' float'); el.setAttribute('role', 'alert');
+        el.innerHTML = (inLoader ? '' : '<button class="x" aria-label="关上">×</button>') + '<h2>' + (kind === 'slow' ? '还在打开…' : inLoader ? '没能打开' : '有些内容没能打开') + '</h2><p class="why">' + why + '</p><ul><li>' + tips.join('</li><li>') + '</li></ul>'
+          + '<div class="acts"><button class="re">刷新再试</button><a class="tell" target="_blank" rel="noopener" href="' + tell + '">告诉我</a></div>' + (detail ? '<small>' + String(detail).replace(/[<>&]/g, '').slice(0, 200) + '</small>' : '');
+        el.querySelector('.re').onclick = function () { location.reload(); };
+        var x = el.querySelector('.x'); if (x) x.onclick = function () { el.parentNode.removeChild(el); };
+        if (inLoader) { var m = loader.querySelector('.loader-msg'), b = loader.querySelector('.loader-bar'); if (kind !== 'slow') { if (m) m.style.display = 'none'; if (b) b.style.display = 'none'; } loader.appendChild(el); }
+        else document.body.appendChild(el);
+        shown = { el: el, inLoader: inLoader && kind !== 'slow' };
+      };
+      // 还没打开就出错了（3D 打不开、老浏览器不认的写法……）；页面后来照样打开了的话，卡片跟着加载页一起淡掉
+      // 只管自己的脚本（微信等往页面里塞的脚本报错不算）；等 1.2 秒，页面要是照样打开了就不说了（不闪一下“没能打开”）
+      window.addEventListener('error', function (e) {
+        var msg = e.message || (e.error && e.error.message) || '';
+        if (msg === 'Script error.' || (e.filename && location.protocol !== 'file:' && e.filename.indexOf(location.origin) !== 0)) return;
+        setTimeout(function () { var l = document.getElementById('loader'); if (l && !/\bdone\b/.test(l.className)) window.__lbFail(null, msg); }, 1200);
+      });
+      // 自己的脚本文件没下载下来（断网、被拦）：这种报错不冒泡，要在捕获阶段接（构建时 script 标签上的 onerror 会被去掉）
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (!t || t.tagName !== 'SCRIPT' || !t.src || t.src.indexOf(location.origin) !== 0) return;
+        var l = document.getElementById('loader'); if (l && !/\bdone\b/.test(l.className)) window.__lbFail('load', t.src.split('/').pop());
+      }, true);
+      // 30 秒还没打开：多半是网络慢，先告诉一声（加载完了自己会淡掉）
+      setTimeout(function () { var l = document.getElementById('loader'); if (l && !/\bdone\b/.test(l.className) && !/\bsnap\b/.test(document.documentElement.className)) window.__lbFail('slow'); }, 30000);
+    })();
+  </script>
+  <script nomodule>window.__lbFail('old');</script>
+</body>
+</html>

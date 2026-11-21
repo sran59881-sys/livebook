@@ -1,0 +1,1 @@
+var e=`/livebook/assets/earth_relief-BoUxhDUB.jpg`;export{e as t};

@@ -1,0 +1,1 @@
+var e=9.8,t=.05;function n(t){return Math.sqrt(10/7*e*t)}function r(t){return .5*e*t*t}function i(t,r){if(!(t>0&&r>0))return null;let i=Math.sqrt(2*r/e);return{x:n(t)*i,drop:r,t:i}}function a(e,t){for(let n=1;n<e.length;n++){let r=e[n-1],i=e[n];if(i.drop>r.drop&&r.drop<=t&&t<=i.drop)return r.x+(i.x-r.x)*(t-r.drop)/(i.drop-r.drop)}return null}export{n as a,i,e as n,a as o,r,t};

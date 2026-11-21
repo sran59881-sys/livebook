@@ -1,0 +1,1 @@
+var e=`/livebook/assets/meadow-tile-DMrp5B81.jpg`;export{e as t};

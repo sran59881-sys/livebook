@@ -1,0 +1,1 @@
+var e=`/livebook/assets/strata-side-CA_rskya.jpg`;export{e as t};

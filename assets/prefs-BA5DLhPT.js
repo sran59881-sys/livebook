@@ -1,0 +1,1 @@
+var e=`livebook.show`,t={cards:!0,steps:!0,...(()=>{try{return JSON.parse(localStorage.getItem(e))||{}}catch{return{}}})()},n=!1;function r(e=n){n=e,document.body.classList.toggle(`hide-cards`,e&&!t.cards),document.body.classList.toggle(`hide-steps`,e&&!t.steps)}function i(n,i){t[n]=i,localStorage.setItem(e,JSON.stringify(t)),r()}export{i as n,t as r,r as t};
